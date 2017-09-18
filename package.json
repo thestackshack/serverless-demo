@@ -1,0 +1,16 @@
+{
+  "name": "serverless-demo-app",
+  "version": "1.0.0",
+  "description": "Demo the CloudFormation templates for all the Lambda event sources.",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [
+    "CloudFormation",
+    "Lambda",
+    "AWS"
+  ],
+  "author": "rgfindley@gmail.com",
+  "license": "ISC"
+}
