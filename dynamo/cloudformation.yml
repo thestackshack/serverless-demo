@@ -118,7 +118,7 @@ Resources:
   # Tell our Lambda to poll the DynamoDB Kinesis Stream
   #
   EventSourceMapping:
-    Type: "AWS::Lambda::EventSourceMapping"
+    Type: AWS::Lambda::EventSourceMapping
     DependsOn: IamPolicyLambdaExecution # We need our policy to complete first or this step throws an error.
     Properties:
       EventSourceArn: !GetAtt DynamoDBTable.StreamArn
