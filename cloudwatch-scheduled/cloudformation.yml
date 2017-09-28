@@ -75,40 +75,31 @@ Resources:
           };
       Runtime: nodejs6.10
 
-  #
-  # S3 bucket
-  #
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName:
-        Fn::Join:
-          - ''
-          - - !Ref AWS::StackName
-            - '-s3'
-      AccessControl: 'Private'
-      NotificationConfiguration:
-        LambdaConfigurations:
-          -
-            Function: !GetAtt LambdaFunction.Arn
-            Event: 's3:ObjectCreated:*'
-            Filter:
-              S3Key:
-                Rules:
-                  -
-                    Name: suffix
-                    Value: .jpg
 
   #
-  # S3 permission to invoke Lambda
+  # CloudWatch Event to trigger lambda
   #
-  PermissionForS3ToInvokeLambda:
+  ScheduledRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'ScheduledRule'
+      ScheduleExpression: 'rate(10 minutes)'
+      State: 'ENABLED'
+      Targets:
+        -
+          Arn: !GetAtt LambdaFunction.Arn
+          Id: 'ScheduledRuleLambdaTarget'
+
+  #
+  # Permission for CloudWatch to invoke Lambda
+  #
+  PermissionForEventsToInvokeLambda:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref LambdaFunction
       Action: 'lambda:InvokeFunction'
-      Principal: 's3.amazonaws.com'
-      SourceAccount: !Ref AWS::AccountId
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt ScheduledRule.Arn
 
 #
 # Outputs to be used by other CloudFormation templates if needed.
@@ -119,8 +110,3 @@ Outputs:
     Value: !Ref LambdaFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
-  S3Bucket:
-    Description: S3 Bucket
-    Value: !Ref S3Bucket
-    Export:
-      Name: !Sub '${AWS::StackName}-S3Bucket'

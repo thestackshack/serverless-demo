@@ -76,39 +76,78 @@ Resources:
       Runtime: nodejs6.10
 
   #
-  # S3 bucket
+  # Code Build IAM Role
   #
-  S3Bucket:
-    Type: AWS::S3::Bucket
+  CodeBuildRole:
+    Type: AWS::IAM::Role
     Properties:
-      BucketName:
-        Fn::Join:
-          - ''
-          - - !Ref AWS::StackName
-            - '-s3'
-      AccessControl: 'Private'
-      NotificationConfiguration:
-        LambdaConfigurations:
-          -
-            Function: !GetAtt LambdaFunction.Arn
-            Event: 's3:ObjectCreated:*'
-            Filter:
-              S3Key:
-                Rules:
-                  -
-                    Name: suffix
-                    Value: .jpg
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+      Policies:
+        - PolicyName: ServiceRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudWatchWriteLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Sid: S3GetObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: '*'
+              - Sid: S3PutObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: '*'
 
   #
-  # S3 permission to invoke Lambda
+  # Code Build project
   #
-  PermissionForS3ToInvokeLambda:
+  Repo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - '-repo'
+      Triggers:
+      - Name: MasterTrigger
+        DestinationArn: !GetAtt LambdaFunction.Arn
+        Branches:
+          - master
+        Events:
+          - all
+
+  #
+  # Normally you would have a CodePipeline or other means of triggering your CodeBuild.  We only want to show the
+  # Lambda trigger here.
+  #
+
+  #
+  # Permission for CloudWatch to invoke our Lambda
+  #
+  PermissionForRepositoryToInvokeLambda:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref LambdaFunction
       Action: 'lambda:InvokeFunction'
-      Principal: 's3.amazonaws.com'
-      SourceAccount: !Ref AWS::AccountId
+      Principal: 'codecommit.amazonaws.com'
+      SourceArn: !GetAtt Repo.Arn
 
 #
 # Outputs to be used by other CloudFormation templates if needed.
@@ -119,8 +158,8 @@ Outputs:
     Value: !Ref LambdaFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
-  S3Bucket:
-    Description: S3 Bucket
-    Value: !Ref S3Bucket
+  Repo:
+    Description: Repo
+    Value: !GetAtt Repo.CloneUrlHttp
     Export:
-      Name: !Sub '${AWS::StackName}-S3Bucket'
+      Name: !Sub '${AWS::StackName}-Repo'

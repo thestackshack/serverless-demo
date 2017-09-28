@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+#
+# CloudFormation input parameters
+#
+#Parameters:
+#  VpcStackName:
+#    Type: String
+#    Description: The vpc stack name, used to import output values from this stack.  cross-stack resource sharing.
+
+#
+# CloudFormation resources
+#
+Resources:
+
+  #
+  # Role that our Lambda will assume to provide access to other AWS resources
+  #
+  IamRoleLambdaExecution:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+
+  #
+  # Create a Policy and attach it to our Lambda Role.
+  #
+  IamPolicyLambdaExecution:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: IamPolicyLambdaExecution
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: '*'
+      Roles:
+      - Ref: IamRoleLambdaExecution
+
+  #
+  # Our Lambda function.
+  #
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Timeout: 5
+      Role:
+        Fn::GetAtt:
+          - IamRoleLambdaExecution
+          - Arn
+      Code:
+        ZipFile: !Sub |
+          'use strict';
+
+          exports.handler = function(event, context) {
+              console.log(JSON.stringify(event));
+              context.succeed('Hello CIM!');
+          };
+      Runtime: nodejs6.10
+
+  #
+  # Code Build IAM Role
+  #
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+      Policies:
+        - PolicyName: ServiceRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudWatchWriteLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Sid: S3GetObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: '*'
+              - Sid: S3PutObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: '*'
+
+  #
+  # Code Build project
+  #
+  AppCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/eb-nodejs-6.10.0-amazonlinux-64:4.0.0
+        Type: LINUX_CONTAINER
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - '-code-build'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: app/buildspec.yml
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+
+
+  #
+  # CloudWatch Event to trigger Lambda .
+  #
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'EventRule'
+      EventPattern:
+        source:
+          - 'aws.codebuild'
+        detail-type:
+          - 'CodeBuild Build State Change'
+        detail:
+          project-name:
+            - Fn::Join:
+                - ''
+                - - Ref: AWS::StackName
+                  - '-code-build'
+          build-status:
+            - 'IN_PROGRESS'
+            - 'SUCCEEDED'
+            - 'FAILED'
+            - 'STOPPED'
+      State: 'ENABLED'
+      Targets:
+        -
+          Arn: !GetAtt LambdaFunction.Arn
+          Id: 'RuleLambdaTarget'
+
+  #
+  # Normally you would have a CodePipeline or other means of triggering your CodeBuild.  We only want to show the
+  # Lambda trigger here.
+  #
+
+  #
+  # Permission for CloudWatch to invoke our Lambda
+  #
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt EventRule.Arn
+
+#
+# Outputs to be used by other CloudFormation templates if needed.
+#
+Outputs:
+  LambdaFunction:
+    Description: Lambda Function
+    Value: !Ref LambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunction'
