@@ -1,0 +1,225 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+#
+# CloudFormation input parameters
+#
+#Parameters:
+#  VpcStackName:
+#    Type: String
+#    Description: The vpc stack name, used to import output values from this stack.  cross-stack resource sharing.
+
+#
+# CloudFormation resources
+#
+Resources:
+
+  #
+  # Role that our Lambda will assume to provide access to other AWS resources
+  #
+  IamRoleLambdaExecution:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+
+  #
+  # Create a Policy and attach it to our Lambda Role.
+  #
+  IamPolicyLambdaExecution:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: IamPolicyLambdaExecution
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: '*'
+      Roles:
+      - Ref: IamRoleLambdaExecution
+
+  #
+  # Our Lambda function.
+  #
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Timeout: 5
+      Role:
+        Fn::GetAtt:
+          - IamRoleLambdaExecution
+          - Arn
+      Code:
+        ZipFile: !Sub |
+          'use strict';
+
+          exports.handler = function(event, context) {
+              console.log(JSON.stringify(event));
+              context.succeed('Hello CIM!');
+          };
+      Runtime: nodejs6.10
+
+  #
+  # S3 bucket
+  #
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Join:
+          - ''
+          - - !Ref AWS::StackName
+            - '-config'
+      AccessControl: 'Private'
+
+  #
+  # Permission for CloudWatch to invoke our Lambda
+  #
+  PermissionForConfigToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'config.amazonaws.com'
+
+  #
+  # DeliveryChannel
+  #
+  DeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      ConfigSnapshotDeliveryProperties:
+        DeliveryFrequency: "One_Hour"
+      S3BucketName: !Ref S3Bucket
+
+  #
+  # Config Rule
+  #
+  ConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - '-config-rule'
+      Scope:
+        ComplianceResourceTypes:
+          - "AWS::CloudFormation::Stack"
+      Source:
+        Owner: "CUSTOM_LAMBDA"
+        SourceDetails:
+          -
+            EventSource: "aws.config"
+            MessageType: "ConfigurationItemChangeNotification"
+        SourceIdentifier: !GetAtt LambdaFunction.Arn
+    DependsOn:
+      - PermissionForConfigToInvokeLambda
+      - ConfigRecorder
+
+
+  #
+  # Role that coinfig will assume to provide access to other AWS resources
+  #
+  IamRoleConfigExecution:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - config.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+
+  #
+  # Create a Policy and attach it to our Config Role.
+  #
+  IamPolicyConfigExecution:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: IamPolicyLambdaExecution
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+            - cloudtrail:DescribeTrails
+            - ec2:Describe*
+            - config:PutEvaluations
+            - cloudtrail:GetTrailStatus
+            - s3:GetObject
+            - iam:GetAccountAuthorizationDetails
+            - iam:GetGroup
+            - iam:GetGroupPolicy
+            - iam:GetPolicy
+            - iam:GetPolicyVersion
+            - iam:GetRole
+            - iam:GetRolePolicy
+            - iam:GetUser
+            - iam:GetUserPolicy
+            - iam:ListAttachedGroupPolicies
+            - iam:ListAttachedRolePolicies
+            - iam:ListAttachedUserPolicies
+            - iam:ListEntitiesForPolicy
+            - iam:ListGroupPolicies
+            - iam:ListGroupsForUser
+            - iam:ListInstanceProfilesForRole
+            - iam:ListPolicyVersions
+            - iam:ListRolePolicies
+            - iam:ListUserPolicies
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - S3:*
+          Resource:
+            Fn::Join:
+              - ''
+              - - !GetAtt S3Bucket.Arn
+                - '/*'
+        - Effect: Allow
+          Action:
+            - S3:*
+          Resource: !GetAtt S3Bucket.Arn
+      Roles:
+      - Ref: IamRoleConfigExecution
+
+  #
+  # Recorder
+  #
+  ConfigRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Properties:
+      Name: default
+      RecordingGroup:
+        ResourceTypes:
+          - "AWS::CloudFormation::Stack"
+      RoleARN: !GetAtt IamRoleConfigExecution.Arn
+#
+# Outputs to be used by other CloudFormation templates if needed.
+#
+Outputs:
+  LambdaFunction:
+    Description: Lambda Function
+    Value: !Ref LambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunction'

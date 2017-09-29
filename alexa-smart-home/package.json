@@ -1,5 +1,5 @@
 {
-  "name": "serverless-demo-app.cloudwatch-logs",
+  "name": "serverless-demo-app.alexa-smart-home",
   "version": "1.0.0",
   "description": "Demo the CloudFormation templates for all the Lambda event sources.",
   "main": "index.js",
