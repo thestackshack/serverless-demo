@@ -205,6 +205,11 @@ Resources:
   #
   # CI/CD
   #
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Condition: NeedsCICD
+    Properties:
+      AccessControl: Private
 
   #
   # CodeBuild Permissions
@@ -239,13 +244,12 @@ Resources:
             Resource: '*'
           - Effect: Allow
             Action:
-              - s3:GetObject
-              - s3:GetObjectVersion
-            Resource: '*'
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource: '*'
+              - s3:*
+            Resource:
+              - !Sub 'arn:aws:s3:::${ArtifactsBucket}'
+              - !Sub 'arn:aws:s3:::${ArtifactsBucket}/*'
+              - !Sub 'arn:aws:s3:::${WebsiteBucket}'
+              - !Sub 'arn:aws:s3:::${WebsiteBucket}/*'
       Roles:
         - !Ref CodeBuildRole
 
@@ -299,12 +303,6 @@ Resources:
   #
   # CodePipeline
   #
-  ArtifactsBucket:
-    Type: AWS::S3::Bucket
-    Condition: NeedsCICD
-    Properties:
-      AccessControl: Private
-
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Condition: NeedsCICD
