@@ -1,0 +1,62 @@
+version: 0.1
+stack:
+  name: static-website # Note: Update this with your stack name
+  template:
+    file: cloudformation.yml
+    bucket: cim-stack-artifacts-${stack.name} # Note: Update this with your bucket name.  Stacks are uploaded here prior to deployment.'
+#
+# Reference parent stacks fo included shared information like stack name.
+#
+#  parents:
+#    vpc: '../vpc'
+
+#
+# Define stack input parameters.
+#
+  parameters:
+    TLD: 'cim.sh'
+    Domain: 'cim.sh'
+    Redirect: 'www.cim.sh'
+
+    # CI/CD
+    GitHubOwner: 'thestackshack'
+    GitHubRepo: 'serverless-demo'
+    GitHubToken: '${kms.decrypt(AQICAHgiu9XuQb4FZRXrLn/77g1P99ZhS7/g3xOsvbvNpb+/qQH+sxP+if0SN0/QR0I3M9ehAAAAhzCBhAYJKoZIhvcNAQcGoHcwdQIBADBwBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDNTJCu1YrFM64MUL4AIBEIBD8zDL0Oc+8rQwr/7fJq+NyPB7vKJ/lNqqcmBBN9QS8XDFAqB9Vh9fkCUSilXs3HG3NL6EdLYaR9Z5blo7p2/HTmJrnw==)}'
+    GitHubBranch: 'master'
+#
+# Define stack capabilities required.
+#
+  capabilities:
+    - 'CAPABILITY_IAM'
+
+#
+# Define global tags.
+#
+  tags:
+    app: 'cim.sh'
+
+stage:
+  dev:
+    stack:
+      name: static-website-dev
+      parameters:
+        Domain: 'dev.cim.sh'
+        Redirect: ''
+        CertDomain: '*.cim.sh'
+
+        # CI/CD
+        GitHubBranch: 'develop'
+
+#
+# TODO:
+# - CICD
+#
+
+#
+# README:
+# - This template has an additional 'dev' stage.  This is hooked up to your 'develop' GIT branch.
+#   This is nice for testing changes before pushing to production.
+#
+# - After you 'stack-up' you will need to verify your email address so that AWS can issue the SSL certificate for you domain.
+#   More info here:  http://docs.aws.amazon.com/acm/latest/userguide/gs-acm-validate.html
+#
