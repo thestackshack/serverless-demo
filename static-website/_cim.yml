@@ -48,11 +48,6 @@ stage:
         GitHubBranch: 'develop'
 
 #
-# TODO:
-# - CICD
-#
-
-#
 # README:
 # - This template has an additional 'dev' stage.  This is hooked up to your 'develop' GIT branch.
 #   This is nice for testing changes before pushing to production.
