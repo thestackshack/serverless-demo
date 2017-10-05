@@ -13,14 +13,22 @@ stack:
 #
 # Define stack input parameters.
 #
-#  parameters:
-#    VpcStackName: '${stack.parents.vpc.stack.name}'
+  parameters:
+    TLD: 'cim.sh'
+    Domain: 'api.cim.sh'
 
 #
 # Define stack capabilities required.
 #
   capabilities:
     - 'CAPABILITY_IAM'
+
+stage:
+  dev:
+    stack:
+      name: cim-lambda-api-gateway-dev
+      parameters:
+        Domain: 'dev-api.cim.sh'
 
 #
 # Define global tags.

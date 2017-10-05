@@ -14,10 +14,6 @@ Parameters:
     Type: String
     Description: Redirect to Domain (www.example.com redirects to example.com)
     Default: ''
-  CertDomain:
-    Type: String
-    Description: Use this as the domain when creating the SSL cert instead of Domain.
-    Default: ''
   GitHubOwner:
     Type: String
     Description: GitHub repository owner
@@ -38,7 +34,6 @@ Parameters:
 
 Conditions:
   NeedsRedirect: !Not [!Equals [!Ref Redirect, '']]
-  UseCertDomain: !Not [!Equals [!Ref CertDomain, '']]
   NeedsCICD: !And
     - !Not [!Equals [!Ref GitHubOwner, '']]
     - !Not [!Equals [!Ref GitHubRepo, '']]
@@ -79,7 +74,10 @@ Resources:
   SSL:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !If [UseCertDomain, !Ref CertDomain, !Ref Domain]
+      DomainName: !Ref Domain
+      DomainValidationOptions:
+        - DomainName: !Ref Domain
+          ValidationDomain: !Ref TLD
 
   #
   # CloudFront CDN
