@@ -75,6 +75,18 @@ Resources:
           };
       Runtime: nodejs6.10
 
+  LambdaFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref LambdaFunction
+
+  LambdaFunctionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      FunctionVersion: !GetAtt LambdaFunctionVersion.Version
+      Name: 'PROD'
+
   #
   # S3 bucket
   #
@@ -90,7 +102,7 @@ Resources:
       NotificationConfiguration:
         LambdaConfigurations:
           -
-            Function: !GetAtt LambdaFunction.Arn
+            Function: !Ref LambdaFunctionAlias
             Event: 's3:ObjectCreated:*'
             Filter:
               S3Key:
@@ -105,7 +117,7 @@ Resources:
   PermissionForS3ToInvokeLambda:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref LambdaFunction
+      FunctionName: !Ref LambdaFunctionAlias
       Action: 'lambda:InvokeFunction'
       Principal: 's3.amazonaws.com'
       SourceAccount: !Ref AWS::AccountId
@@ -119,6 +131,11 @@ Outputs:
     Value: !Ref LambdaFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
+  LambdaFunctionAlias:
+    Description: Lambda Function Alias
+    Value: !Ref LambdaFunctionAlias
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionAlias'
   S3Bucket:
     Description: S3 Bucket
     Value: !Ref S3Bucket

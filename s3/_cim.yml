@@ -4,6 +4,12 @@ stack:
   template:
     file: cloudformation.yml
     bucket: cim-stack-artifacts # Note: Update this with your bucket name.  Stacks are uploaded here prior to deployment.'
+  policy:
+    file: policy.json
+    bucket: cim-stack-artifacts
+  policyDuringUpdate:
+    file: policyDuringUpdate.json
+    bucket: cim-stack-artifacts
 #
 # Reference parent stacks fo included shared information like stack name.
 #
@@ -31,8 +37,9 @@ stack:
 lambda:
   functions:
     -
-      alias: hello
-      function_name: ${stack.outputs.LambdaFunction}
+      function: ${stack.outputs.LambdaFunction}
+      aliases:
+        PROD: ${stack.outputs.LambdaFunctionAlias}
       zip_file: index.zip
   deploy:
     phases:
